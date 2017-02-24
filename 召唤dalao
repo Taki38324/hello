@@ -1,0 +1,10 @@
+#include<stdio.h>
+int main()
+{
+printf("hello,world!");
+return 0;
+}
+/*变量m在for循环中需要每次都初始化*/
+//啊啊啊啊啊原来是那里！！
+//谢谢你w
+/**/
