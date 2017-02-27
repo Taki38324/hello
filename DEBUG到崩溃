@@ -1,0 +1,342 @@
+#include<stdio.h>
+#include<limits.h>
+#include<time.h>
+#include<string.h>
+
+int board[20][20] = { {0 } }, depth0 = 2, state2, time_out, depth_max = 6;
+unsigned long start, start1, time_sum = 0;//计时相关时间
+
+void time_check();
+int board_in(int x, int y, int whose, int value);
+int alphabeta(int a, int b, int value, int whose, int depth, int bestmove[]);
+int alphabeta_naive(int a, int b, int value, int whose, int depth);//简化版alphabeta函数
+
+int main()
+{
+    int x = 0, y = 0, whose, i, value = 0, val = 0, bestmove[8], bestmove1[8], x_out = 0, y_out = 0, accumulation = 0;//bestmove存储主要变例
+    char order[6];
+    for (i = 0; i<8; i++)//初始化bestmove
+        bestmove[i] = -1;
+    scanf("%s", order);
+    scanf("%s", order);
+    for (; order[0] == 'P'; scanf("%s", order),accumulation++)
+    {
+        scanf("%d %d %d", &x, &y, &whose);
+        value = board_in(x, y, whose, value);
+    }
+    printf("OK\n");
+    fflush(stdout);
+    scanf("%s", order);
+    while (order[0] == 'T' || order[0] == 'B')
+    {
+        time_out = 1;
+        start = clock() * 16384 / CLOCKS_PER_SEC;//重置计时
+        if (order[0] == 'T')
+        {
+            scanf("%d %d", &x, &y);
+            fflush(stdin);
+            value = board_in(x, y, 2, value);
+            if (bestmove[1] != x * 32 + y)//上一轮搜索返回的最佳着法序列未命中对手
+            {
+                for (i = 0; i<8; i++)
+                    bestmove[i] = -1;//清空bestmove
+                depth0 = 2;//重置初始深度
+            }
+            else//命中
+            {
+                for (i = 0; i<6; i++)
+                    bestmove[i] = bestmove[i + 2];
+                for (depth0 = 2; bestmove[depth0] != -1; depth0 += 2);//设置初始深度
+            }
+            state2 = val = 0;
+        }
+        for (; depth0 <= depth_max&&val<16384 && val>-16384 && time_out; depth0 += 2, state2 = 1)//迭代加深
+        {
+            val = alphabeta(-1073741824, 1073741824, value, 1, depth0, bestmove);//返回的bestmove对应位置即为当前深度最佳走法
+            if (time_out)
+            {
+                memcpy(bestmove1, bestmove, 8 * sizeof(int));
+                x_out = bestmove1[0] / 32;
+                y_out = bestmove1[0] - bestmove1[0] / 32 * 32;
+            }
+        }
+        printf("%d %d\n", x_out, y_out);
+        accumulation += 2;
+        if (accumulation>60)//中局时无法搜索六层,将深度减为四层
+            depth_max = 4;
+        if (accumulation>350)//持久战末端有可能能搜到六层
+            depth_max = 6;
+        fflush(stdout);
+        value = board_in(x_out, y_out, 1, value);
+        scanf("%s", order);
+    }
+    return 0;
+}
+
+int alphabeta(int a, int b, int value, int whose, int depth, int bestmove[])
+{
+    if (depth == 0 || value>16384 || value<-16384)//保证搜索过程中不会出现输赢判定之后一方分数反超的局面
+        return (3 - whose * 2)*value;
+    if (depth == 6)
+        start1 = clock() * 16384 / CLOCKS_PER_SEC;
+    int mybestmoves[8];
+    memcpy(mybestmoves, bestmove, 8 * sizeof(int));
+    int board_in(int x, int y, int whose, int value);
+    int val, val1, x, y = 0, pv = 0, n = 0, i, state = 0, t, best = 0, max = INT_MIN;
+    int legalmoves[200];//存储合法走法,并将之前遗传下来的最佳走法和单层启发的最佳走法放在一起
+    for (x = 0; x<20; x++)//浅层启发
+        for (y = 0; y<20; y++, state = 0)
+        {
+            if (board[x][y] == 0 && ((x>0 && y>0 && board[x - 1][y - 1] != 0) || (y>0 && board[x][y - 1] != 0) || (y>0 && x<19 && board[x + 1][y - 1] != 0) || (x>0 && board[x - 1][y] != 0) || (x<19 && board[x + 1][y] != 0) || (x>0 && y<19 && board[x - 1][y + 1] != 0) || (y<19 && board[x][y + 1] != 0) || (x<19 && y<19 && board[x + 1][y + 1] != 0)))
+            {
+                if (depth>2)
+                {
+                    val = board_in(x, y, whose, value);
+                    if (val>max)
+                    {
+                        max = val;
+                        best = n;
+                    }
+                    board[x][y] = 0;
+                }
+                legalmoves[n] = x * 32;
+                legalmoves[n] += y;
+                n++;
+            }
+        }
+    if (best != 0)//将浅层尝试后最优秀的着法放在前边
+    {
+        t = legalmoves[0];
+        legalmoves[0] = legalmoves[best];
+        legalmoves[best] = t;
+    }
+    if (state2 == 1 && (t=(bestmove[depth0 - depth])) != -1)//上一深度搜索下来的最佳走法依然适用
+    {
+        for (i = 0; i<n&&legalmoves[i] != t; i++);//寻找最佳走法在legalmoves中位置
+        legalmoves[i] = legalmoves[1];
+        legalmoves[1] = legalmoves[0];
+        legalmoves[0] = bestmove[depth0 - depth];
+    }
+    else
+        state2 = 0;//使后方所有搜索都不直接采用bestmove
+    for (i = 0; i<n&&time_out; i++)
+    {
+        x = legalmoves[i] / 32;
+        y = legalmoves[i] - x * 32;
+        val = board_in(x, y, whose, value);//执行着法,修改val为当前局面的评分
+        mybestmoves[depth0 - depth] = x * 32 + y;
+        if (pv)
+        {
+            val1 = -alphabeta_naive(-a - 1, -a, val, 3 - whose, depth - 1);//零窗搜索,检查是否不如现有走法
+            if ((val1>a) && (val1<b))//检查失败,转为普通ab搜索
+                val1 = -alphabeta(-b, -a, val, 3 - whose, depth - 1, mybestmoves);
+        }
+        else
+            val1 = -alphabeta(-b, -a, val, 3 - whose, depth - 1, mybestmoves);//首次搜索时进行正常ab搜索
+        board[x][y] = 0;
+        if (depth == 6)
+        {
+            time_sum = clock() * 16384 / CLOCKS_PER_SEC - start1;
+            if (i>2 && (time_sum / (i + 1)*n>6 * 16384))
+                time_out = 0;
+        }
+        if (val1 > b)
+            return val1;//触发剪枝,此处应直接结束函数
+        if (val1>a)
+        {
+            a = val1;
+            memcpy(bestmove, mybestmoves, 8 * sizeof(int));
+            pv = 1;
+        }
+        if (depth >= 4)
+            time_check();
+    }
+    return a;
+}
+
+int alphabeta_naive(int a, int b, int value, int whose, int depth)//简化的alphabeta函数,不返回最佳着法序列
+{
+    if (depth == 0 || value>16384 || value<-16384)//保证不会出现输赢判定之后一方分数反超的局面
+        return (3 - whose * 2)*value;
+    int board_in(int x, int y, int whose, int value);
+    int val, val1, x, y = 0, pv = 0, state = 0;
+    for (x = 0; x<20 && time_out; x++)//浅层「现为单层」启发
+        for (y = 0; y<20 && time_out; y++, state = 0)
+        {
+            if (board[x][y] == 0 && ((x>0 && y>0 && board[x - 1][y - 1] != 0) || (y>0 && board[x][y - 1] != 0) || (y>0 && x<19 && board[x + 1][y - 1] != 0) || (x>0 && board[x - 1][y] != 0) || (x<19 && board[x + 1][y] != 0) || (x>0 && y<19 && board[x - 1][y + 1] != 0) || (y<19 && board[x][y + 1] != 0) || (x<19 && y<19 && board[x + 1][y + 1] != 0)))
+            {
+                val = board_in(x, y, whose, value);//执行着法 修改val为当前局面的评分
+                  if (pv)
+                {
+                    val1 = -alphabeta_naive(-a - 1, -a, val, 3 - whose, depth - 1);//零窗搜索
+                    if ((val1>a) && (val1<b))//检查失败   转为普通ab搜索
+                        val1 = -alphabeta_naive(-b, -a, val, 3 - whose, depth - 1);
+                }
+                else
+                    val1 = -alphabeta_naive(-b, -a, val, 3 - whose, depth - 1);//进行正常ab搜索
+                board[x][y] = 0;
+                if (val1 > b)
+                    return val1;//触发剪枝,此处应直接结束函数
+                if (val1>a)//交换最优着法
+                {
+                    a = val1;
+                    pv = 1;
+                }
+                if (depth >= 4)
+                    time_check();//检查避免超时
+            }
+        }
+    return a;
+}
+
+int board_in(int x, int y, int whose, int value)//返回在(x,y)落whose一方子之后局面评分
+{
+    int i=-2, i1, j=-1, l, count[2], c, d, b;
+    i = -2;
+    j = 1;
+    for (b = 0; b<4; b++)//重新计算value值
+    {
+        if(b<3)
+            i++;
+        else
+            j=0;
+        for (l = 0; l<5; l++)
+        {
+            count[0] = 0;
+            count[1] = 0;
+            if (x + i*l<0 || x + i*(l - 4)<0 || x + i*l>19 || x + i*(l - 4)>19 || y + j*l<0 || y + j*(l - 4)<0 || y + j*l>19)
+                continue;
+            for (c = 0; c<5; c++)//记录该五元组中双方子数
+            {
+                if ((d = board[x + i*(l - c)][y + j*(l - c)]) == 1)
+                    count[0]++;
+                else if (d == 2)
+                    count[1]++;
+            }
+            if ((count[0]>1 || count[1]>1) && (count[0] == 0 || count[1] == 0))//根据棋子数量给予评分
+                for (i1 = 0; i1<2; i1++)
+                {
+                    if (count[i1] == 5)
+                        value -= (8192 * (4 - 7 * i1));
+                    else if (count[i1] == 4)
+                        value -= (256 * (4 - 7 * i1));
+                    else if (count[i1] == 3)
+                        value -= (16 * (4 - 7 * i1));
+                    else if (count[i1] == 2)
+                        value -= (2 * (4 - 7 * i1));
+                }
+            count[whose - 1]++;
+            if ((count[0]<2 && count[1]<2) || (count[0] != 0 && count[1] != 0))
+                continue;
+            for (i1 = 0; i1<2; i1++)
+            {
+                if (count[i1] == 5)
+                    value += (8192 * (4 - 7 * i1));
+                else if (count[i1] == 4)
+                    value += (256 * (4 - 7 * i1));
+                else if (count[i1] == 3)
+                    value += (16 * (4 - 7 * i1));
+                else if (count[i1] == 2)
+                    value += (2 * (4 - 7 * i1));
+            }
+        }
+    }
+    board[x][y] = whose;//落子
+    return value;
+}
+
+void time_check()//检查是否将要超时
+{
+    if (clock() * 16384 / CLOCKS_PER_SEC - start>73728)
+        time_out = 0;
+}
+
+/*传递给alphabeta函数的INT_MAX在取负后会是无效值*/
+
+// =v=!? 取负之后不是会变成它的相反数吗
+
+/*数字过大溢出了 你试试 int i=-INT_MAX*/
+
+int i=-INT_MAX;
+printf("i=%d\n",i);
+//哦哦噢噢噢!!!对对对对对是这样的TvT
+
+/*还有你的局面评价函数的估值设定有点问题 你看一下*/
+
+//诶？我觉得这组数面相挺好的呀v
+
+/*喂 活四多了之后可是有机会抵消另一方成五的评分的诶*/
+
+//QAQ 那怎么办呢？我先把成五的评分值给高一点吧
+
+/*嗯 调用alphabeta函数的时候判断一下成五吧*/
+
+//嗯嗯有道理  我加上
+
+/*不过你这个评估函数很有想法呀 还挺方便的*/
+
+//hhhhhhhhh我自创的哟w
+
+//现在已经可以成功搜索到四层了！！ 感谢dalao「HUG
+
+/*想更深一点吗*/
+
+//！！想！想
+
+/*你试着吧Nega-Max搜索改成PVS搜索吧，参考资料在这里：https://www.google.com*/
+
+//好，好难啊感觉  智商不够用TAT
+
+/*理解原理之后就不会太困难 哪里还没搞懂吧*/
+
+//嗯！ 就总感觉这个零窗口搜索很迷啊
+//搜搜搜搜索半天连搜索结果都不告诉我  拿它何用啊
+
+/*可是你可以通过他返回的值判断哪一个解更优 跳过无用的搜索 节约时间 这才是零窗口搜索的意义*/
+
+//原来只是用来试探的啊  零窗口真可怜TvT
+//诶为什么感觉搜索速度没有快上多少啊  还是只能搜到四层
+
+/*你返回主要变例了吗*/
+
+//没有=A=
+
+/*待搜索结点排序呢*/
+
+//我…我这就去加！！！
+
+/*冒泡排序太慢了  用快速排序吧*/
+
+//啊啊写出BUG了  先，先等等我去加个断点调试一下
+//好了  六层！！！科科科v  多谢dalao出手相助
+
+/*嗯  不用谢*/
+
+//怎么办  好像....
+//过两天就要答辩了QAQ
+
+/*有什么好担心的*/
+
+//据说我们C语言老师一言不合就拿刁钻问题怼人T T
+
+/*alphabeta剪枝你是亲手写的*/
+
+//嗯
+
+/*评估函数是你自创的*/
+
+//嗯 QvQ
+
+/*PVS搜索是你完全理解了才写出来的*/
+
+//嗯 TwT
+
+/*恕我直言  还有什么好怕的吗*/
+
+//没…没有吧
+
+/*嗯。*/
+
+//「大概？
+
+/*嗯!? 눈_눈*/
