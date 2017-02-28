@@ -1,7 +1,6 @@
 #include<stdio.h>
 #include<limits.h>
 #include<time.h>
-#include<string.h>
 
 int board[20][20] = { {0 } }, depth0 = 2, state2, time_out, depth_max = 6;
 unsigned long start, start1, time_sum = 0;//计时相关时间
